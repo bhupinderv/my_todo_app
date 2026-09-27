@@ -47,6 +47,14 @@
     </section>
 
     <div id="main-view" hidden>
+      <div class="view-switch" role="group" aria-label="View">
+        <button type="button" data-action="set-view" data-view="focus" aria-pressed="true">Focus</button>
+        <button type="button" data-action="set-view" data-view="overview" aria-pressed="false">Overview</button>
+      </div>
+
+      <section id="focus-view" aria-live="polite"></section>
+
+      <div id="overview" hidden>
       <section id="briefing" class="card briefing" aria-live="polite"></section>
 
       <section class="section" aria-labelledby="top-heading">
@@ -89,6 +97,7 @@
           <ul id="done-list" class="task-list"></ul>
         </details>
       </section>
+      </div>
     </div>
   </main>
 

@@ -1,10 +1,11 @@
 import { tasksApi as api, auth, isDemo, resetDemoData } from './store.js';
+import { AUTO_SIGN_IN_EMAIL, AUTO_SIGN_IN_PASSWORD } from './config.js';
 import {
   todayISO, formatDue, relativeTime, formatWhen, snoozeUntil, SNOOZE_OPTIONS, isValidISODate,
 } from './dates.js';
 import {
   rankTasks, summarize, suggestPriority, effectivePriority, isOverdue, isSnoozed,
-  suggestedPosition, suggestedOrder, between,
+  suggestedPosition, suggestedOrder, between, dueInDays,
 } from './prioritization.js';
 import { enableDragSort, isDragging } from './dnd.js';
 
@@ -17,7 +18,19 @@ const CATEGORIES = {
   other: 'Other',
 };
 
+const VIEW_KEY = 'next.view';
+
+function savedView() {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'overview' ? 'overview' : 'focus';
+  } catch {
+    return 'focus';
+  }
+}
+
 const state = {
+  view: savedView(),
+  focusId: null, // task the user picked over the suggestion, for this visit only
   user: null,
   tasks: [],
   loading: true,
@@ -227,11 +240,140 @@ function render() {
   const today = todayISO();
   const now = new Date();
   const ranked = rankTasks(state.tasks, { today, now });
+  const focus = state.view === 'focus';
+  $('#focus-view').hidden = !focus;
+  $('#overview').hidden = focus;
+  for (const b of document.querySelectorAll('[data-action="set-view"]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.view === state.view));
+  }
+  if (focus) {
+    renderFocus(today, now, ranked);
+    return;
+  }
   const top = ranked.slice(0, 3);
   renderBriefing(today, now, top);
   renderTop(today, now, top, ranked.length);
   renderList(today, now);
   renderDone();
+}
+
+function setView(view) {
+  state.view = view;
+  try {
+    localStorage.setItem(VIEW_KEY, view);
+  } catch {
+    // Remembering the view is a convenience; ignore storage failures.
+  }
+  render();
+  window.scrollTo(0, 0);
+}
+
+// ---------- focus view ----------
+
+/** One plain sentence on why this task is the one to do now. */
+function focusReason(task, today, now) {
+  const d = dueInDays(task, today);
+  const since = task.started_at ? relativeTime(task.started_at, now) : null;
+  if (task.status === 'IN_PROGRESS') {
+    if (d !== null && d < 0) return since ? `You started this ${since} and it’s overdue.` : 'You’re in the middle of this and it’s overdue.';
+    return since ? `You started this ${since}. Finishing it beats starting something new.` : 'You’re in the middle of this. Finish what you started.';
+  }
+  if (task.pinned) return 'You pinned this to the top.';
+  if (d !== null && d < 0) return `It’s ${plural(-d, 'day')} overdue. Do it now, or give it a new date.`;
+  if (d === 0) return 'It’s due today.';
+  if (d === 1) return 'It’s due tomorrow. Getting it done today keeps tomorrow free.';
+  if (task.user_priority === 'HIGH') return 'You marked this high priority.';
+  if (task.effort_minutes && task.effort_minutes <= 30) return `A quick win: about ${formatEffort(task.effort_minutes)}.`;
+  return 'It’s the best next step on your list.';
+}
+
+function focusPills(task, today, now) {
+  const out = [];
+  if (task.due_date) {
+    const due = formatDue(task.due_date, today);
+    out.push(`<span class="badge due ${due.tone}">${esc(due.label)}</span>`);
+  }
+  if (task.status === 'IN_PROGRESS') {
+    out.push(`<span class="badge status">In progress${task.started_at ? ` · ${esc(relativeTime(task.started_at, now))}` : ''}</span>`);
+  }
+  const p = effectivePriority(task, today);
+  out.push(`<span class="badge prio prio-${p.toLowerCase()}">${p[0]}${p.slice(1).toLowerCase()} priority</span>`);
+  if (task.effort_minutes) out.push(`<span class="badge plain">${formatEffort(task.effort_minutes)}</span>`);
+  if (task.pinned) out.push('<span class="badge pin">Pinned</span>');
+  return out.join('');
+}
+
+function renderFocus(today, now, ranked) {
+  const el = $('#focus-view');
+  if (state.loading && state.tasks.length === 0) {
+    el.innerHTML = '<div class="skeleton focus-skeleton"></div>';
+    return;
+  }
+  if (state.loadError) {
+    el.innerHTML = `
+      <div class="card"><p class="greeting">Couldn’t load your tasks.</p>
+      <p class="summary muted">${esc(state.loadError)}</p>${button('retry', 'Try again', 'primary')}</div>`;
+    return;
+  }
+
+  const s = summarize(state.tasks, { today, now });
+  const counts = [];
+  if (s.overdue.length) counts.push(`<button type="button" class="sum sum-overdue" data-action="show-overview">${s.overdue.length} overdue</button>`);
+  if (s.dueToday.length) counts.push(`<button type="button" class="sum sum-today" data-action="show-overview">${s.dueToday.length} due today</button>`);
+  if (s.inProgress.length) counts.push(`<button type="button" class="sum sum-active" data-action="show-overview">${s.inProgress.length} in progress</button>`);
+  const header = `
+    <div class="focus-summary">
+      <span class="greeting">${greeting(now)}.</span>
+      ${counts.join('') || '<span class="muted">Nothing is overdue or due today.</span>'}
+    </div>`;
+
+  const picked = state.focusId ? ranked.find((r) => r.task.id === state.focusId) : null;
+  if (!picked) state.focusId = null;
+  const current = picked ?? ranked[0];
+
+  if (!current) {
+    const msg = s.open.length
+      ? 'Everything open is snoozed. It’ll come back when the snooze ends.'
+      : 'Nothing needs you right now. Capture a task with the + button, or enjoy the free time.';
+    el.innerHTML = `${header}<div class="focus-stage"><div class="focus-card focus-empty"><p class="focus-title">All clear</p><p class="focus-why">${msg}</p></div></div>`;
+    return;
+  }
+
+  const t = current.task;
+  const inProgress = t.status === 'IN_PROGRESS';
+  const alternatives = ranked.filter((r) => r !== current).slice(0, 2);
+  const category = CATEGORIES[t.category] ?? t.category;
+
+  el.innerHTML = `
+    ${header}
+    <div class="focus-stage cat-${esc(t.category)}">
+      <article class="focus-card" data-id="${t.id}" aria-labelledby="focus-title">
+        <span class="cat-chip">${esc(category)}</span>
+        <div class="focus-label">${picked ? 'Your pick' : 'Do this next'}</div>
+        <h2 id="focus-title" class="focus-title">${esc(t.title)}</h2>
+        <div class="focus-pills">${focusPills(t, today, now)}</div>
+        <p class="focus-why">${esc(focusReason(t, today, now))}</p>
+        ${t.notes ? `<p class="focus-notes">${esc(t.notes)}</p>` : ''}
+        <div class="focus-actions">
+          ${inProgress ? button('done', 'Mark done', 'primary') : button('start', 'Start', 'primary')}
+          ${inProgress ? button('pause', 'Pause') : button('done', 'Done')}
+          ${button('snooze', 'Not now')}
+          ${button('edit', 'Edit', 'ghost')}
+        </div>
+        ${picked ? button('focus-reset', 'Back to the suggestion', 'ghost focus-reset') : ''}
+      </article>
+      ${alternatives.length ? `
+        <div class="focus-alts">
+          <span class="small muted">Or instead:</span>
+          ${alternatives.map(({ task }) => `
+            <button type="button" class="alt-chip cat-${esc(task.category)}" data-action="focus-pick" data-pick="${task.id}">
+              <span class="dot" aria-hidden="true"></span>${esc(task.title)}
+            </button>`).join('')}
+        </div>` : ''}
+    </div>
+    <div class="focus-footer">
+      <button type="button" class="btn small ghost" data-action="show-overview">See all ${plural(s.open.length, 'open task')} →</button>
+    </div>`;
 }
 
 function greeting(now) {
@@ -557,6 +699,16 @@ function handleAction(e) {
     case 'edit': return openEditor(task);
     case 'reschedule': return openEditor(task, { focus: 'due_date' });
     case 'retry': return loadTasks();
+    case 'set-view': return setView(el.dataset.view);
+    case 'show-overview': return setView('overview');
+    case 'focus-pick':
+      state.focusId = el.dataset.pick;
+      render();
+      return undefined;
+    case 'focus-reset':
+      state.focusId = null;
+      render();
+      return undefined;
     default: return undefined;
   }
 }
@@ -697,6 +849,17 @@ function showAuthErrorFromUrl() {
   history.replaceState(null, '', window.location.pathname + window.location.search);
 }
 
+/** Sign in with the credentials from config.js, if any. Tried once per page load. */
+let autoSignInTried = false;
+function autoSignIn() {
+  if (autoSignInTried || isDemo || !AUTO_SIGN_IN_EMAIL || !AUTO_SIGN_IN_PASSWORD) return;
+  autoSignInTried = true;
+  $('#auth-msg').textContent = 'Signing in…';
+  auth.signInWithPassword(AUTO_SIGN_IN_EMAIL, AUTO_SIGN_IN_PASSWORD).catch((err) => {
+    $('#auth-msg').textContent = `Automatic sign-in failed (${err.message}). Check the email and password in js/config.js.`;
+  });
+}
+
 async function boot() {
   wireEvents();
   showAuthErrorFromUrl();
@@ -709,6 +872,7 @@ async function boot() {
       if (!user) {
         state.tasks = [];
         showView('auth');
+        setTimeout(autoSignIn, 0);
         return;
       }
       showView('main');

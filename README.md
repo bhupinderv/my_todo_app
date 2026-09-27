@@ -54,7 +54,12 @@ npm test
 4. Go to **Authentication → URL Configuration**:
    - Set **Site URL** to your GitHub Pages URL, e.g. `https://<you>.github.io/<repo>/`.
    - Add `http://localhost:8000/` under **Redirect URLs** for local testing.
-5. Open the app, enter your email, and click the magic link. After your first sign-in, you can turn off **Authentication → Sign In / Providers → Allow new users to sign up** so nobody else can create an account. Row-level security already keeps other users out of your tasks.
+   - If a magic link sends you to `localhost:3000`, the URL you're using isn't in this list, so Supabase fell back to its default Site URL.
+5. Sign in. Either:
+   - **Password:** in **Authentication → Users → Add user**, create yourself with an email and password and tick *Auto Confirm User*. Then sign in with those. No email is sent.
+   - **Magic link:** enter your email and click **Email me a link**. Supabase's built-in email sends only about 2 emails an hour, so use the newest link.
+
+   After your first sign-in, you can turn off **Authentication → Sign In / Providers → Allow new users to sign up** so nobody else can create an account. Row-level security already keeps other users out of your tasks.
 
 > The anon key is meant to be public. The site stays safe because of row-level security: every row belongs to `auth.uid()`, and the `anon` role has no access to the table.
 
