@@ -46,6 +46,10 @@ const remoteTasks = {
 };
 
 const remoteAuth = {
+  async signInWithPassword(email, password) {
+    const db = await getClient();
+    unwrap(await db.auth.signInWithPassword({ email, password }));
+  },
   async sendMagicLink(email) {
     const db = await getClient();
     unwrap(await db.auth.signInWithOtp({
@@ -137,6 +141,7 @@ const localTasks = {
 };
 
 const demoAuth = {
+  async signInWithPassword() {},
   async sendMagicLink() {},
   async signOut() {},
   async onChange(callback) {

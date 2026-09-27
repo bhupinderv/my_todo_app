@@ -531,6 +531,7 @@ function applySnooze(kind) {
 function showView(name) {
   $('#auth-view').hidden = name !== 'auth';
   $('#main-view').hidden = name !== 'main';
+  $('#new-task').hidden = name !== 'main';
   $('#sign-out').hidden = name !== 'main' || isDemo;
   $('#user-email').textContent = name === 'main' ? (state.user?.email ?? '') : '';
 }
@@ -613,18 +614,57 @@ function wireEvents() {
 
   $('#auth-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = e.target.elements.email.value.trim();
+    const form = e.target;
+    const email = form.elements.email.value.trim();
+    const password = form.elements.password.value;
     const msg = $('#auth-msg');
-    const btn = e.target.querySelector('button');
+    if (!email || !password) {
+      msg.textContent = 'Enter your email and password — or use “Email me a link” below.';
+      return;
+    }
+    const btn = $('#password-sign-in');
     btn.disabled = true;
-    msg.textContent = 'Sending…';
+    msg.textContent = 'Signing in…';
     try {
-      await auth.sendMagicLink(email);
-      msg.textContent = `Check ${email} for a sign-in link. You can close this tab.`;
+      await auth.signInWithPassword(email, password);
+      form.elements.password.value = '';
+      msg.textContent = '';
     } catch (err) {
-      msg.textContent = `Couldn’t send the link: ${err.message}`;
+      msg.textContent = /invalid login credentials/i.test(err.message)
+        ? 'Wrong email or password.'
+        : `Couldn’t sign in: ${err.message}`;
     } finally {
       btn.disabled = false;
+    }
+  });
+
+  $('#magic-link').addEventListener('click', async (e) => {
+    const emailInput = $('#auth-form').elements.email;
+    const email = emailInput.value.trim();
+    const msg = $('#auth-msg');
+    if (!email || !emailInput.checkValidity()) {
+      msg.textContent = 'Enter your email first.';
+      emailInput.focus();
+      return;
+    }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    msg.textContent = 'Sending…';
+    let cooldown = 0;
+    try {
+      await auth.sendMagicLink(email);
+      msg.textContent = `Check ${email} for a sign-in link — use only the newest email. You can close this tab.`;
+      cooldown = 60; // Supabase allows one link per address per minute
+    } catch (err) {
+      msg.textContent = /rate limit/i.test(err.message)
+        ? 'Too many sign-in emails for now (Supabase’s built-in email allows only a few per hour). Wait a while, or use the newest link you already received.'
+        : `Couldn’t send the link: ${err.message}`;
+    } finally {
+      if (cooldown) {
+        setTimeout(() => { btn.disabled = false; }, cooldown * 1000);
+      } else {
+        btn.disabled = false;
+      }
     }
   });
   $('#sign-out').addEventListener('click', async () => {
@@ -648,8 +688,18 @@ function wireEvents() {
   });
 }
 
+/** Supabase reports a failed magic link in the URL hash; show it on the sign-in form. */
+function showAuthErrorFromUrl() {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const message = params.get('error_description');
+  if (!message) return;
+  $('#auth-msg').textContent = `${message}. Request a new link below — only the most recent link works.`;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+
 async function boot() {
   wireEvents();
+  showAuthErrorFromUrl();
   $('#today').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
   $('#demo-banner').hidden = !isDemo;
   try {
