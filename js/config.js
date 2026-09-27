@@ -3,5 +3,5 @@
 // security (see supabase/schema.sql) ensures you can only reach your own tasks.
 //
 // Leave these empty to run in demo mode (data stays in this browser only).
-export const SUPABASE_URL = '';
-export const SUPABASE_ANON_KEY = '';
+export const SUPABASE_URL = 'https://bfnqyjpsddrfrrejhujq.supabase.co';
+export const SUPABASE_ANON_KEY = 'sb_publishable_wbjKckxaU9KG-0GH8B5NCA_SUGaNw2E';
