@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Next — what to work on</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f5bea'/%3E%3Cpath d='M9 16h13m-5-6 6 6-6 6' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">→</span>
+      <div>
+        <div class="brand-name">Next</div>
+        <div id="today" class="small muted"></div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="user-email" class="small muted"></span>
+      <button id="sign-out" type="button" class="btn small ghost" hidden>Sign out</button>
+    </div>
+  </header>
+
+  <div id="demo-banner" class="banner" hidden>
+    Demo mode — tasks are saved in this browser only. Add your Supabase keys to <code>js/config.js</code> to sync.
+    <button id="reset-demo" type="button" class="btn small ghost">Reset sample data</button>
+  </div>
+
+  <main>
+    <section id="auth-view" class="card auth" hidden>
+      <h1>Sign in</h1>
+      <p class="muted">We’ll email you a one-time sign-in link. No password needed.</p>
+      <form id="auth-form">
+        <label for="auth-email">Email</label>
+        <div class="inline">
+          <input id="auth-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+          <button type="submit" class="btn primary">Send link</button>
+        </div>
+      </form>
+      <p id="auth-msg" class="small" role="status"></p>
+    </section>
+
+    <div id="main-view" hidden>
+      <section id="briefing" class="card briefing" aria-live="polite"></section>
+
+      <section class="section" aria-labelledby="top-heading">
+        <div class="section-head">
+          <h2 id="top-heading">Top 3 right now</h2>
+          <span class="small muted">The app recommends — you decide.</span>
+        </div>
+        <ol id="top3" class="top3"></ol>
+      </section>
+
+      <section class="section" aria-labelledby="list-heading">
+        <div class="section-head">
+          <h2 id="list-heading">Your list</h2>
+          <div class="tools">
+            <label class="visually-hidden" for="filter">Category</label>
+            <select id="filter">
+              <option value="all">All categories</option>
+              <option value="work">Work</option>
+              <option value="cooking">Cooking</option>
+              <option value="household">Household</option>
+              <option value="study">Study</option>
+              <option value="errands">Errands</option>
+              <option value="other">Other</option>
+            </select>
+            <button id="resort" type="button" class="btn small ghost" title="Reorder the list by the app's suggestion">Suggest order</button>
+          </div>
+        </div>
+
+        <form id="quick-add" class="quick-add">
+          <label class="visually-hidden" for="quick-title">New task</label>
+          <input id="quick-title" type="text" maxlength="200" autocomplete="off" placeholder="Capture a task, get back to work…">
+          <button type="submit" class="btn primary">Add</button>
+          <button id="open-add" type="button" class="btn ghost">Details…</button>
+        </form>
+
+        <ul id="task-list" class="task-list"></ul>
+
+        <details id="done-section" class="done-section" hidden>
+          <summary>Done (<span id="done-count">0</span>)</summary>
+          <ul id="done-list" class="task-list"></ul>
+        </details>
+      </section>
+    </div>
+  </main>
+
+  <button id="new-task" type="button" class="fab" aria-label="New task">+</button>
+
+  <dialog id="task-dialog" aria-labelledby="dialog-title">
+    <form id="task-form" novalidate>
+      <h2 id="dialog-title">New task</h2>
+
+      <label for="f-title">Title</label>
+      <input id="f-title" name="title" type="text" maxlength="200" required autocomplete="off">
+
+      <div class="grid-2">
+        <div>
+          <label for="f-category">Category</label>
+          <select id="f-category" name="category">
+            <option value="work">Work</option>
+            <option value="cooking">Cooking</option>
+            <option value="household">Household</option>
+            <option value="study">Study</option>
+            <option value="errands">Errands</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-due">Due date</label>
+          <input id="f-due" name="due_date" type="date">
+        </div>
+        <div>
+          <label for="f-priority">Priority</label>
+          <select id="f-priority" name="user_priority">
+            <option value="">Auto</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-effort">Estimated effort</label>
+          <select id="f-effort" name="effort_minutes">
+            <option value="">—</option>
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+            <option value="60">1 hour</option>
+            <option value="120">2 hours</option>
+            <option value="240">Half a day</option>
+            <option value="480">A day or more</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-status">Status</label>
+          <select id="f-status" name="status">
+            <option value="TODO">To do</option>
+            <option value="IN_PROGRESS">In progress</option>
+            <option value="DONE">Done</option>
+          </select>
+        </div>
+        <div class="checkbox-field">
+          <label><input name="pinned" type="checkbox"> Pin to Top 3</label>
+        </div>
+      </div>
+
+      <label for="f-notes">Notes</label>
+      <textarea id="f-notes" name="notes" rows="3"></textarea>
+
+      <p id="task-meta" class="small muted"></p>
+      <p id="form-error" class="form-error" role="alert"></p>
+
+      <div class="dialog-actions">
+        <button id="delete-task" type="button" class="btn danger ghost">Delete</button>
+        <span class="spacer"></span>
+        <button id="cancel-task" type="button" class="btn ghost">Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="snooze-dialog" aria-labelledby="snooze-heading">
+    <form method="dialog">
+      <h2 id="snooze-heading">Remind me later</h2>
+      <p id="snooze-task" class="muted"></p>
+      <div class="snooze-options">
+        <button class="btn" value="later" data-snooze="later"></button>
+        <button class="btn" value="tomorrow" data-snooze="tomorrow"></button>
+        <button class="btn" value="3days" data-snooze="3days"></button>
+        <button class="btn" value="nextweek" data-snooze="nextweek"></button>
+      </div>
+      <p class="small muted">Snoozed tasks leave your Top 3 until then. The due date doesn’t change.</p>
+      <div class="dialog-actions">
+        <button id="unsnooze" class="btn ghost" value="wake">Wake up now</button>
+        <span class="spacer"></span>
+        <button class="btn ghost" value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
