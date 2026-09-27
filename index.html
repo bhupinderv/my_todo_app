@@ -32,12 +32,15 @@
   <main>
     <section id="auth-view" class="card auth" hidden>
       <h1>Sign in</h1>
-      <p class="muted">We’ll email you a one-time sign-in link. No password needed.</p>
-      <form id="auth-form">
+      <form id="auth-form" novalidate>
         <label for="auth-email">Email</label>
-        <div class="inline">
-          <input id="auth-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
-          <button type="submit" class="btn primary">Send link</button>
+        <input id="auth-email" name="email" type="email" required autocomplete="username" placeholder="you@example.com">
+        <label for="auth-password">Password</label>
+        <input id="auth-password" name="password" type="password" autocomplete="current-password">
+        <button id="password-sign-in" type="submit" class="btn primary auth-submit">Sign in</button>
+        <div class="auth-alt">
+          <span class="small muted">No password?</span>
+          <button id="magic-link" type="button" class="btn small ghost">Email me a link</button>
         </div>
       </form>
       <p id="auth-msg" class="small" role="status"></p>
@@ -89,7 +92,7 @@
     </div>
   </main>
 
-  <button id="new-task" type="button" class="fab" aria-label="New task">+</button>
+  <button id="new-task" type="button" class="fab" aria-label="New task" hidden>+</button>
 
   <dialog id="task-dialog" aria-labelledby="dialog-title">
     <form id="task-form" novalidate>
